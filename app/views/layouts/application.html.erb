@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title><%= content_for(:title) || "Inswall" %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+
+    <%= yield :head %>
+
+    <%# Enable PWA manifest for installable apps (make sure to enable in config/routes.rb too!) %>
+    <%#= tag.link rel: "manifest", href: pwa_manifest_path(format: :json) %>
+
+    <link rel="icon" href="/icon.png" type="image/png">
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icon.png">
+
+    <%# Includes all stylesheet files in app/assets/stylesheets %>
+    <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
+    <%= javascript_importmap_tags %>
+    
+    <style>
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #fafafa;
+        color: #333;
+      }
+      
+      h1, h2, h3 {
+        color: #262626;
+      }
+      
+      .flash-message {
+        padding: 10px 20px;
+        margin: 0;
+        text-align: center;
+        color: white;
+        font-weight: bold;
+      }
+      
+      .flash-notice {
+        background-color: #0095f6;
+      }
+      
+      .flash-alert {
+        background-color: #ed4956;
+      }
+      
+      <%= yield :styles %>
+    </style>
+  </head>
+
+  <body>
+    <header class="main-header">
+      <div class="header-container">
+        <h1 class="site-title">Inswall</h1>
+      </div>
+    </header>
+    
+    <% if notice %>
+      <div class="flash-message flash-notice"><%= notice %></div>
+    <% end %>
+    
+    <% if alert %>
+      <div class="flash-message flash-alert"><%= alert %></div>
+    <% end %>
+    
+    <main class="main-content">
+      <%= yield %>
+    </main>
+    
+    <footer class="main-footer">
+      <div class="footer-container">
+        <p>&copy; <%= Time.now.year %> Inswall - Instagram 话题墙</p>
+      </div>
+    </footer>
+    
+    <style>
+      .main-header {
+        background-color: #fff;
+        border-bottom: 1px solid #dbdbdb;
+        padding: 10px 0;
+      }
+      
+      .header-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 20px;
+      }
+      
+      .site-title {
+        margin: 0;
+        font-size: 1.8em;
+        color: #0095f6;
+      }
+      
+      .main-content {
+        min-height: calc(100vh - 120px);
+      }
+      
+      .main-footer {
+        background-color: #fff;
+        border-top: 1px solid #dbdbdb;
+        padding: 15px 0;
+        text-align: center;
+        font-size: 0.9em;
+        color: #8e8e8e;
+      }
+      
+      .footer-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 20px;
+      }
+    </style>
+  </body>
+</html>

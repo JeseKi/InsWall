@@ -1,0 +1,72 @@
+<div class="topic-wall">
+  <div class="topic-header">
+    <h1>#<%= @topic %></h1>
+    <%= link_to "返回话题列表", root_path, class: "back-link" %>
+  </div>
+
+  <div class="posts-container" id="posts-container">
+    <% @posts.each do |post| %>
+      <%= render 'post', post: post %>
+    <% end %>
+  </div>
+</div>
+
+<% content_for :styles do %>
+  <style>
+    .topic-wall {
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .topic-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+    }
+
+    .back-link {
+      text-decoration: none;
+      color: #0095f6;
+      font-weight: bold;
+    }
+
+    .posts-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 20px;
+    }
+    
+    /* 新帖子动画效果 */
+    .new-post-animation {
+      animation: fadeIn 0.8s ease-in-out;
+      border: 2px solid #0095f6;
+      box-shadow: 0 0 15px rgba(0, 149, 246, 0.5);
+    }
+    
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+<% end %>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // 导入话题频道连接函数
+    import('/assets/channels/topic_channel.js').then(module => {
+      const connectToTopicChannel = module.default;
+      // 连接到当前话题的频道
+      connectToTopicChannel('<%= @topic %>');
+    }).catch(error => {
+      console.error('加载话题频道模块失败:', error);
+    });
+  });
+</script>

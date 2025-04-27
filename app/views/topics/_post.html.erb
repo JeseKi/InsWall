@@ -1,0 +1,85 @@
+<div class="post-card" data-post-id="<%= post['id'] %>">
+  <div class="post-media">
+    <% if post['media_type'] == 'IMAGE' %>
+      <% media_path = post['media_url'].gsub('data/mock/', '/mock/') %>
+      <%= image_tag media_path, class: 'post-image', alt: '帖子图片' %>
+    <% else %>
+      <% media_path = post['media_url'].gsub('data/mock/', '/mock/') %>
+      <video controls class="post-video">
+        <source src="<%= media_path %>" type="video/mp4">
+        您的浏览器不支持视频标签。
+      </video>
+    <% end %>
+  </div>
+
+  <div class="post-content">
+    <div class="post-caption">
+      <%= post['caption'] %>
+    </div>
+
+    <div class="post-meta">
+      <div class="post-stats">
+        <span class="likes">❤️ <%= post['like_count'] %></span>
+        <span class="comments">💬 <%= post['comments_count'] %></span>
+      </div>
+      <div class="post-time">
+        <%= Time.parse(post['timestamp']).strftime('%Y-%m-%d %H:%M') %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<% content_for :styles do %>
+  <style>
+    .post-card {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      overflow: hidden;
+      transition: transform 0.2s;
+    }
+
+    .post-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+
+    .post-media {
+      width: 100%;
+      aspect-ratio: 1;
+      overflow: hidden;
+    }
+
+    .post-image, .post-video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .post-content {
+      padding: 15px;
+    }
+
+    .post-caption {
+      margin-bottom: 10px;
+      font-size: 0.9em;
+      line-height: 1.4;
+    }
+
+    .post-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8em;
+      color: #666;
+    }
+
+    .post-stats span {
+      margin-right: 10px;
+    }
+
+    .post-time {
+      color: #999;
+    }
+  </style>
+<% end %>
