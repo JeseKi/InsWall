@@ -1,0 +1,9 @@
+version: '3.8'
+services:
+  app:
+    environment:
+      - RAILS_ENV=test
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./data/mock/:/rails/public/mock
