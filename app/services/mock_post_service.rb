@@ -231,7 +231,7 @@ class MockPostService
 
         if topics_with_subscribers.empty?
           Rails.logger.debug "当前没有话题有订阅者，跳过推送"
-          sleep rand(5..10)  # 如果没有订阅者，等待较短时间
+          sleep rand(5..10)
           next
         end
 
@@ -269,8 +269,8 @@ class MockPostService
           Rails.logger.info "已推送新帖子到连接 #{connection_id} 的话题 ##{topic}"
         end
 
-        # 随机等待 10-30 秒再推送下一个帖子
-        sleep rand(10..30)
+        # 随机等待 2-5 秒再推送下一个帖子
+        sleep rand(2..5)
       end
     end
   end
