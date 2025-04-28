@@ -1,13 +1,21 @@
 <div class="topic-wall">
   <div class="topic-header">
     <h1>#<%= @topic %></h1>
-    <%= link_to "返回话题列表", root_path, class: "back-link" %>
+    
+    <div class="topic-selector">
+      <form action="<%= root_path %>" method="get" class="topic-form">
+        <select name="topic" id="topic-select" onchange="this.form.submit()">
+          <option value="">选择话题...</option>
+          <% @topics.each do |topic| %>
+            <option value="<%= topic %>" <%= 'selected' if topic == @topic %>>#<%= topic %></option>
+          <% end %>
+        </select>
+      </form>
+    </div>
   </div>
 
   <div class="posts-container" id="posts-container">
-    <% @posts.each do |post| %>
-      <%= render 'post', post: post %>
-    <% end %>
+    <%= render 'posts', posts: @posts, topic: @topic %>
   </div>
 </div>
 
@@ -25,17 +33,48 @@
       align-items: center;
       margin-bottom: 30px;
     }
-
-    .back-link {
-      text-decoration: none;
-      color: #0095f6;
-      font-weight: bold;
+    
+    .topic-selector select {
+      padding: 8px 12px;
+      border: 1px solid #dbdbdb;
+      border-radius: 4px;
+      background-color: #fff;
+      font-size: 1em;
+      color: #262626;
+      cursor: pointer;
+      outline: none;
+    }
+    
+    .topic-selector select:hover {
+      border-color: #0095f6;
     }
 
     .posts-container {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
       gap: 20px;
+    }
+    
+    /* 加载更多按钮 */
+    .load-more-container {
+      grid-column: 1 / -1;
+      text-align: center;
+      margin: 20px 0;
+    }
+    
+    .load-more-button {
+      background-color: #0095f6;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 10px 20px;
+      font-size: 1em;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    
+    .load-more-button:hover {
+      background-color: #0077c5;
     }
     
     /* 新帖子动画效果 */
@@ -55,18 +94,279 @@
         transform: translateY(0);
       }
     }
+    
+    /* 新帖子通知 */
+    .new-post-notification {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #0095f6;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      z-index: 1000;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.3s, transform 0.3s;
+      pointer-events: none;
+    }
+    
+    .new-post-notification.show {
+      opacity: 1;
+      pointer-events: auto;
+      animation: notificationBounce 0.5s;
+    }
+    
+    @keyframes notificationBounce {
+      0%, 20%, 50%, 80%, 100% {transform: translateX(-50%) translateY(0);}
+      40% {transform: translateX(-50%) translateY(-10px);}
+      60% {transform: translateX(-50%) translateY(-5px);}
+    }
   </style>
 <% end %>
 
+<!-- 新帖子通知元素 -->
+<div id="new-post-notification" class="new-post-notification">
+  有新帖子！点击查看
+</div>
+
+<!-- 将会话ID传递给JavaScript -->
 <script>
+  // 存储会话ID，用于WebSocket连接
+  const sessionId = '<%= session.id %>';
+  
   document.addEventListener('DOMContentLoaded', function() {
-    // 导入话题频道连接函数
-    import('/assets/channels/topic_channel.js').then(module => {
-      const connectToTopicChannel = module.default;
-      // 连接到当前话题的频道
-      connectToTopicChannel('<%= @topic %>');
-    }).catch(error => {
-      console.error('加载话题频道模块失败:', error);
+    // WebSocket 连接状态
+    let socket = null;
+    let isConnected = false;
+    let reconnectAttempts = 0;
+    let maxReconnectAttempts = 10;
+    let reconnectTimeout = null;
+    const topicName = '<%= @topic %>';
+    
+    // 新帖子通知相关
+    const notification = document.getElementById('new-post-notification');
+    let hasNewPosts = false;
+    let isUserAtBottom = true;
+    
+    // 检查用户是否在页面底部
+    function checkIfUserAtBottom() {
+      const scrollPosition = window.scrollY + window.innerHeight;
+      const pageHeight = document.body.scrollHeight;
+      // 如果用户滚动位置在页面底部附近（允许50px的误差）
+      isUserAtBottom = (pageHeight - scrollPosition) < 50;
+    }
+    
+    // 监听滚动事件
+    window.addEventListener('scroll', checkIfUserAtBottom);
+    
+    // 显示新帖子通知
+    function showNewPostNotification() {
+      if (!isUserAtBottom && !hasNewPosts) {
+        hasNewPosts = true;
+        notification.classList.add('show');
+      }
+    }
+    
+    // 隐藏新帖子通知
+    function hideNewPostNotification() {
+      hasNewPosts = false;
+      notification.classList.remove('show');
+    }
+    
+    // 点击通知滚动到顶部
+    notification.addEventListener('click', function() {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      hideNewPostNotification();
     });
+    
+    // 创建 WebSocket 连接
+    function createWebSocketConnection() {
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsHost = window.location.host;
+      const wsURL = `${wsProtocol}//${wsHost}/cable`;
+      
+      console.log(`尝试连接到 WebSocket: ${wsURL}`);
+      
+      // 创建新的 WebSocket 连接
+      socket = new WebSocket(wsURL);
+      
+      // 连接打开时
+      socket.onopen = function(event) {
+        console.log(`WebSocket 连接已打开`);
+        isConnected = true;
+        reconnectAttempts = 0; // 重置重连尝试次数
+        
+        // 发送订阅请求，包含会话ID
+        const subscriptionMessage = {
+          command: 'subscribe',
+          identifier: JSON.stringify({
+            channel: 'TopicChannel',
+            topic: topicName,
+            session_id: sessionId  // 传递会话ID
+          })
+        };
+        
+        socket.send(JSON.stringify(subscriptionMessage));
+        console.log(`已订阅话题 #${topicName} 的频道，会话ID: ${sessionId}`);
+      };
+      
+      // 接收消息时
+      socket.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        
+        // 忽略 ping 消息
+        if (data.type === 'ping') return;
+        
+        // 忽略确认消息
+        if (data.type === 'confirm_subscription') {
+          console.log(`已确认订阅话题 #${topicName} 的频道`);
+          return;
+        }
+        
+        // 处理实际消息
+        if (data.message) {
+          console.log(`收到话题 #${topicName} 的新帖子`);
+          
+          // 检查用户是否在页面底部
+          checkIfUserAtBottom();
+          
+          // 获取帖子容器
+          const postsContainer = document.getElementById('posts-container');
+          
+          // 创建临时容器来解析HTML
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = data.message.html;
+          const newPostElement = tempDiv.firstElementChild;
+          
+          // 添加一个动画类
+          newPostElement.classList.add('new-post-animation');
+          
+          // 将新帖子添加到容器的开头
+          postsContainer.insertBefore(newPostElement, postsContainer.firstChild);
+          
+          // 播放动画
+          setTimeout(() => {
+            newPostElement.classList.remove('new-post-animation');
+          }, 1000);
+          
+          // 如果用户不在页面底部，显示通知
+          if (!isUserAtBottom) {
+            showNewPostNotification();
+          }
+        }
+      };
+      
+      // 连接关闭时
+      socket.onclose = function(event) {
+        if (isConnected) {
+          console.log(`WebSocket 连接已关闭: ${event.code} ${event.reason}`);
+          isConnected = false;
+        }
+        
+        // 尝试重新连接
+        attemptReconnect();
+      };
+      
+      // 连接错误时
+      socket.onerror = function(error) {
+        console.error(`WebSocket 错误: `, error);
+        isConnected = false;
+        
+        // 错误时也尝试重新连接
+        attemptReconnect();
+      };
+    }
+    
+    // 尝试重新连接
+    function attemptReconnect() {
+      // 清除之前的重连计时器
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+      
+      // 如果已经达到最大重试次数，停止尝试
+      if (reconnectAttempts >= maxReconnectAttempts) {
+        console.error(`WebSocket 连接失败: 已达到最大重试次数 (${maxReconnectAttempts})`);
+        return;
+      }
+      
+      // 计算指数退避时间 (1s, 2s, 4s, 8s, ...)
+      const delay = Math.min(5000 * Math.pow(2, reconnectAttempts), 30000);
+      reconnectAttempts++;
+      
+      console.log(`WebSocket 连接失败, 将在 ${delay/1000} 秒后重试 (尝试 ${reconnectAttempts}/${maxReconnectAttempts})`);
+      
+      // 设置重连计时器
+      reconnectTimeout = setTimeout(() => {
+        if (!isConnected) {
+          createWebSocketConnection();
+        }
+      }, delay);
+    }
+    
+    // 初始化 WebSocket 连接
+    createWebSocketConnection();
+    
+    // 处理加载更多按钮点击事件
+    const postsContainer = document.getElementById('posts-container');
+    
+    postsContainer.addEventListener('click', function(event) {
+      if (event.target.classList.contains('load-more-button')) {
+        const loadMoreContainer = event.target.closest('.load-more-container');
+        const topic = loadMoreContainer.dataset.topic;
+        const nextPage = loadMoreContainer.dataset.nextPage;
+        
+        // 禁用按钮，显示加载中状态
+        event.target.disabled = true;
+        event.target.textContent = '加载中...';
+        
+        // 发送 AJAX 请求获取更多帖子
+        fetch(`/topics/${topic}?page=${nextPage}`, {
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+          }
+        })
+        .then(response => response.text())
+        .then(html => {
+          // 移除当前的加载更多按钮
+          loadMoreContainer.remove();
+          
+          // 将新帖子添加到容器中
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = html;
+          
+          // 将新内容添加到帖子容器
+          while (tempDiv.firstChild) {
+            postsContainer.appendChild(tempDiv.firstChild);
+          }
+        })
+        .catch(error => {
+          console.error('加载更多帖子失败:', error);
+          // 恢复按钮状态
+          event.target.disabled = false;
+          event.target.textContent = '加载更多';
+        });
+      }
+    });
+    
+    // 实现滚动到底部自动加载更多
+    const handleScroll = () => {
+      const loadMoreButton = document.querySelector('.load-more-button');
+      if (loadMoreButton) {
+        const buttonRect = loadMoreButton.getBoundingClientRect();
+        // 如果按钮进入视口，自动点击
+        if (buttonRect.top < window.innerHeight && buttonRect.bottom > 0) {
+          loadMoreButton.click();
+        }
+      }
+    };
+    
+    // 添加滚动事件监听
+    window.addEventListener('scroll', handleScroll);
+    // 初始检查一次，以防按钮已经在视口内
+    handleScroll();
   });
 </script>

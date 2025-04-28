@@ -11,8 +11,8 @@ Rails.application.routes.draw do
 
   # 话题墙路由
   root "topics#index"
-  resources :topics, only: [:index, :show]
-  
+  resources :topics, only: [ :index, :show ]
+
   # 配置 Action Cable 路由
-  mount ActionCable.server => '/cable'
+  mount ActionCable.server => "/cable"
 end
