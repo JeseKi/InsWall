@@ -62,7 +62,7 @@ class TopicsController < ApplicationController
     # 如果是 AJAX 请求，只返回帖子部分
     if request.xhr?
       render partial: "posts", locals: { posts: @posts, topic: @topic }
-      nil
+      return  # 添加return来确保不会继续执行
     end
   end
 end

@@ -14,7 +14,7 @@
     </div>
   </div>
 
-  <div class="posts-container" id="posts-container">
+  <div class="posts-container" id="posts-container" data-topic="<%= @topic %>" data-connection-id="<%= session.id %>">
     <%= render 'posts', posts: @posts, topic: @topic %>
   </div>
 </div>
@@ -132,23 +132,18 @@
   有新帖子！点击查看
 </div>
 
-<!-- 将会话ID传递给JavaScript -->
+<!-- 嵌入的 WebSocket 处理代码 -->
 <script>
-  // 存储会话ID，用于WebSocket连接
-  const sessionId = '<%= session.id %>';
-  
   document.addEventListener('DOMContentLoaded', function() {
-    // WebSocket 连接状态
-    let socket = null;
-    let isConnected = false;
-    let reconnectAttempts = 0;
-    let maxReconnectAttempts = 10;
-    let reconnectTimeout = null;
+    // 获取当前话题和会话ID
     const topicName = '<%= @topic %>';
+    const sessionId = '<%= session.id %>';
+    const postsContainer = document.getElementById('posts-container');
+    
+    console.log(`初始化 WebSocket 连接：话题 ${topicName}, 会话ID ${sessionId}`);
     
     // 新帖子通知相关
     const notification = document.getElementById('new-post-notification');
-    let hasNewPosts = false;
     let isUserAtBottom = true;
     
     // 检查用户是否在页面底部
@@ -156,7 +151,7 @@
       const scrollPosition = window.scrollY + window.innerHeight;
       const pageHeight = document.body.scrollHeight;
       // 如果用户滚动位置在页面底部附近（允许50px的误差）
-      isUserAtBottom = (pageHeight - scrollPosition) < 50;
+      isUserAtBottom = (scrollPosition > pageHeight - 50);
     }
     
     // 监听滚动事件
@@ -164,15 +159,11 @@
     
     // 显示新帖子通知
     function showNewPostNotification() {
-      if (!isUserAtBottom && !hasNewPosts) {
-        hasNewPosts = true;
-        notification.classList.add('show');
-      }
+      notification.classList.add('show');
     }
     
     // 隐藏新帖子通知
     function hideNewPostNotification() {
-      hasNewPosts = false;
       notification.classList.remove('show');
     }
     
@@ -182,63 +173,55 @@
       hideNewPostNotification();
     });
     
-    // 创建 WebSocket 连接
-    function createWebSocketConnection() {
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsHost = window.location.host;
-      const wsURL = `${wsProtocol}//${wsHost}/cable`;
+    // WebSocket 连接处理 - 手动创建WebSocket连接，不依赖ActionCable全局对象
+    // 获取WebSocket URL
+    const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+    const host = window.location.host;
+    const wsURL = `${protocol}${host}/cable`;
+    
+    console.log(`连接到WebSocket URL: ${wsURL}`);
+    
+    // 创建WebSocket连接
+    const socket = new WebSocket(wsURL);
+    
+    // 当连接打开时
+    socket.onopen = function(event) {
+      console.log('WebSocket连接已建立');
       
-      console.log(`尝试连接到 WebSocket: ${wsURL}`);
-      
-      // 创建新的 WebSocket 连接
-      socket = new WebSocket(wsURL);
-      
-      // 连接打开时
-      socket.onopen = function(event) {
-        console.log(`WebSocket 连接已打开`);
-        isConnected = true;
-        reconnectAttempts = 0; // 重置重连尝试次数
-        
-        // 发送订阅请求，包含会话ID
-        const subscriptionMessage = {
-          command: 'subscribe',
-          identifier: JSON.stringify({
-            channel: 'TopicChannel',
-            topic: topicName,
-            session_id: sessionId  // 传递会话ID
-          })
-        };
-        
-        socket.send(JSON.stringify(subscriptionMessage));
-        console.log(`已订阅话题 #${topicName} 的频道，会话ID: ${sessionId}`);
+      // 发送订阅请求
+      const subscribeMsg = {
+        command: 'subscribe',
+        identifier: JSON.stringify({
+          channel: 'TopicChannel',
+          topic: topicName,
+          connection_id: sessionId
+        })
       };
       
-      // 接收消息时
-      socket.onmessage = function(event) {
-        const data = JSON.parse(event.data);
+      socket.send(JSON.stringify(subscribeMsg));
+      console.log('发送订阅请求:', subscribeMsg);
+    };
+    
+    // 当收到消息时
+    socket.onmessage = function(event) {
+      // 解析接收到的数据
+      const response = JSON.parse(event.data);
+      console.log('收到WebSocket消息:', response);
+      
+      // 忽略确认消息和ping
+      if (response.type === 'confirm_subscription' || response.type === 'ping') {
+        return;
+      }
+      
+      // 处理正常消息
+      if (response.message) {
+        const data = response.message;
+        console.log(`收到话题 #${topicName} 的新帖子数据:`, data);
         
-        // 忽略 ping 消息
-        if (data.type === 'ping') return;
-        
-        // 忽略确认消息
-        if (data.type === 'confirm_subscription') {
-          console.log(`已确认订阅话题 #${topicName} 的频道`);
-          return;
-        }
-        
-        // 处理实际消息
-        if (data.message) {
-          console.log(`收到话题 #${topicName} 的新帖子`);
-          
-          // 检查用户是否在页面底部
-          checkIfUserAtBottom();
-          
-          // 获取帖子容器
-          const postsContainer = document.getElementById('posts-container');
-          
-          // 创建临时容器来解析HTML
+        if (data.html) {
+          // 处理服务器渲染的HTML
           const tempDiv = document.createElement('div');
-          tempDiv.innerHTML = data.message.html;
+          tempDiv.innerHTML = data.html;
           const newPostElement = tempDiv.firstElementChild;
           
           // 添加一个动画类
@@ -252,67 +235,28 @@
             newPostElement.classList.remove('new-post-animation');
           }, 1000);
           
+          // 检查用户是否在页面底部
+          checkIfUserAtBottom();
+          
           // 如果用户不在页面底部，显示通知
           if (!isUserAtBottom) {
             showNewPostNotification();
           }
         }
-      };
-      
-      // 连接关闭时
-      socket.onclose = function(event) {
-        if (isConnected) {
-          console.log(`WebSocket 连接已关闭: ${event.code} ${event.reason}`);
-          isConnected = false;
-        }
-        
-        // 尝试重新连接
-        attemptReconnect();
-      };
-      
-      // 连接错误时
-      socket.onerror = function(error) {
-        console.error(`WebSocket 错误: `, error);
-        isConnected = false;
-        
-        // 错误时也尝试重新连接
-        attemptReconnect();
-      };
-    }
-    
-    // 尝试重新连接
-    function attemptReconnect() {
-      // 清除之前的重连计时器
-      if (reconnectTimeout) {
-        clearTimeout(reconnectTimeout);
       }
-      
-      // 如果已经达到最大重试次数，停止尝试
-      if (reconnectAttempts >= maxReconnectAttempts) {
-        console.error(`WebSocket 连接失败: 已达到最大重试次数 (${maxReconnectAttempts})`);
-        return;
-      }
-      
-      // 计算指数退避时间 (1s, 2s, 4s, 8s, ...)
-      const delay = Math.min(5000 * Math.pow(2, reconnectAttempts), 30000);
-      reconnectAttempts++;
-      
-      console.log(`WebSocket 连接失败, 将在 ${delay/1000} 秒后重试 (尝试 ${reconnectAttempts}/${maxReconnectAttempts})`);
-      
-      // 设置重连计时器
-      reconnectTimeout = setTimeout(() => {
-        if (!isConnected) {
-          createWebSocketConnection();
-        }
-      }, delay);
-    }
+    };
     
-    // 初始化 WebSocket 连接
-    createWebSocketConnection();
+    // 当连接关闭时
+    socket.onclose = function(event) {
+      console.log('WebSocket连接已关闭:', event);
+    };
+    
+    // 当发生错误时
+    socket.onerror = function(error) {
+      console.error('WebSocket错误:', error);
+    };
     
     // 处理加载更多按钮点击事件
-    const postsContainer = document.getElementById('posts-container');
-    
     postsContainer.addEventListener('click', function(event) {
       if (event.target.classList.contains('load-more-button')) {
         const loadMoreContainer = event.target.closest('.load-more-container');
