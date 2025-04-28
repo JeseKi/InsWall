@@ -2,7 +2,7 @@
   <%= render 'post', post: post %>
 <% end %>
 
-<% if @page < @total_pages %>
+<% if posts.present? %>
   <div class="load-more-container" data-topic="<%= topic %>" data-next-page="<%= @page + 1 %>">
     <button class="load-more-button" id="load-more-button">加载更多</button>
   </div>
