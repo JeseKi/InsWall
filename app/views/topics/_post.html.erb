@@ -2,16 +2,20 @@
   <div class="post-media">
     <% if post['media_type'] == 'IMAGE' %>
       <% media_path = post['media_url'].gsub('data/mock/', '/mock/') %>
-      <%= image_tag media_path, class: 'post-image', alt: '帖子图片' %>
+      <a href="<%= media_path %>" class="glightbox" data-gallery="gallery1" data-type="image" data-description="<%= post['caption'] %>">
+        <%= image_tag media_path, class: 'post-image', alt: '帖子图片' %>
+      </a>
     <% else %>
       <% media_path = post['media_url'].gsub('data/mock/', '/mock/') %>
       <% # 动态生成封面路径：/mock/poster/video_name_poster.jpeg %>
       <% video_name = File.basename(media_path, File.extname(media_path)) %>
       <% poster_path = "/mock/poster/#{video_name}_poster.jpeg" %>
-      <video class="post-video" controls preload="none" poster="<%= poster_path %>">
-        <source src="<%= media_path %>" type="video/mp4">
-        您的浏览器不支持视频标签。
-      </video>
+      <a href="<%= media_path %>" class="glightbox" data-gallery="gallery1" data-type="video" data-description="<%= post['caption'] %>">
+        <video class="post-video" controls preload="none" poster="<%= poster_path %>">
+          <source src="<%= media_path %>" type="video/mp4">
+          您的浏览器不支持视频标签。
+        </video>
+      </a>
     <% end %>
   </div>
 

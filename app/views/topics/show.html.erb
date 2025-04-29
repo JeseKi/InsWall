@@ -141,6 +141,24 @@
       iconUrl: 'https://cdn.jsdelivr.net/npm/plyr@3.7.8/dist/plyr.svg' // Plyr图标SVG路径
     };
 
+    // --- GLightbox 配置 ---
+    const lightboxOptions = {
+      touchNavigation: true,
+      loop: true,
+      autoplayVideos: false,
+      plyr: plyrOptions, // 使用相同的 Plyr 配置
+      closeButton: true,
+      closeOnOutsideClick: true,
+      preload: false, // 不预加载内容
+      zoomable: true, // 允许图片缩放
+      draggable: true, // 允许拖动
+      descPosition: 'bottom', // 描述位置
+      cssEfects: {
+        fade: {in: 'fadeIn', out: 'fadeOut'},
+        zoom: {in: 'zoomIn', out: 'zoomOut'}
+      }
+    };
+
     // --- DOM 元素获取 ---
     const postsContainer = document.getElementById('posts-container');
     const notification = document.getElementById('new-post-notification');
@@ -186,6 +204,10 @@
     // --- 1. 初始化页面首次加载时的视频 ---
     console.log('Initializing Plyr for existing videos on page load...');
     initializePlyrPlayers(postsContainer.querySelectorAll('.post-video'));
+    
+    // --- 初始化 GLightbox ---
+    console.log('Initializing GLightbox...');
+    const lightbox = GLightbox(lightboxOptions);
 
     // --- 新帖子通知逻辑 ---
     function checkUserPosition() {
@@ -270,6 +292,9 @@
 
             // ⭐⭐ 初始化新帖子的 Plyr 播放器 ⭐⭐
             initializePlyrPlayers(newPostElement); // 传递新添加的帖子元素
+            
+            // ⭐⭐ 重新初始化 GLightbox ⭐⭐
+            lightbox.reload();
 
             // 动画和通知逻辑
             setTimeout(() => {
@@ -356,6 +381,9 @@
           if(newVideos.length > 0) {
              initializePlyrPlayers(newVideos);
           }
+          
+          // ⭐⭐ 重新初始化 GLightbox ⭐⭐
+          lightbox.reload();
         })
         .catch(error => {
           console.error('加载更多帖子失败:', error);
