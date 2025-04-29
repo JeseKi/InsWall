@@ -10,21 +10,14 @@
 
     <%= yield :head %>
 
-    <%# Enable PWA manifest for installable apps (make sure to enable in config/routes.rb too!) %>
-    <%#= tag.link rel: "manifest", href: pwa_manifest_path(format: :json) %>
-
     <link rel="icon" href="/icon.png" type="image/png">
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/icon.png">
 
-    <%# Includes all stylesheet files in app/assets/stylesheets %>
     <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
     <%= javascript_importmap_tags %>
     
-    <%# 添加 Plyr.js 的 CSS CDN（更新后的链接） %>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/plyr@3.7.8/dist/plyr.css" />
-    
-    <%# 添加 GLightbox 的 CSS CDN %>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/plyr@3.7.8/dist/plyr.css" />    
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/glightbox@3.2.0/dist/css/glightbox.min.css" />
 
     <style>
@@ -85,17 +78,12 @@
       </div>
     </footer>
     
-    <%# 添加 Plyr.js 的 JS CDN（更新后的链接） %>
     <script src="https://cdn.jsdelivr.net/npm/plyr@3.7.8/dist/plyr.min.js"></script>
-    
-    <%# 添加 GLightbox 的 JS CDN %>
     <script src="https://cdn.jsdelivr.net/npm/glightbox@3.2.0/dist/js/glightbox.min.js"></script>
     <script>
       document.addEventListener('DOMContentLoaded', () => {
-        // 初始化 Plyr.js，针对所有有特定类的 video 元素
         const players = Plyr.setup('.post-video', {
           controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'captions', 'settings', 'pip', 'airplay', 'fullscreen'],
-          // 确保不预加载视频，依赖 HTML 的 preload="none"
           loadSprite: true,
           iconUrl: 'https://cdn.jsdelivr.net/npm/plyr@3.7.8/dist/plyr.svg'
         });
