@@ -132,204 +132,272 @@
   有新帖子！点击查看
 </div>
 
-<!-- 嵌入的 WebSocket 处理代码 -->
 <script>
   document.addEventListener('DOMContentLoaded', function() {
-    // 获取当前话题和会话ID
-    const topicName = '<%= @topic %>';
-    const sessionId = '<%= session.id %>';
+    // --- Plyr.js 配置 ---
+    const plyrOptions = {
+      controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'captions', 'settings', 'pip', 'airplay', 'fullscreen'],
+      loadSprite: true,
+      iconUrl: 'https://cdn.jsdelivr.net/npm/plyr@3.7.8/dist/plyr.svg' // Plyr图标SVG路径
+    };
+
+    // --- DOM 元素获取 ---
     const postsContainer = document.getElementById('posts-container');
-    
-    console.log(`初始化 WebSocket 连接：话题 ${topicName}, 会话ID ${sessionId}`);
-    
-    // 新帖子通知相关
     const notification = document.getElementById('new-post-notification');
+
+    // --- 状态变量 ---
     let isUserAtBottom = true;
-    let isUserAtTop = true; 
-    let hasNewPosts = false; 
-    
-    // 检查用户是否在页面底部和顶部
+    let isUserAtTop = true;
+    let hasNewPosts = false;
+
+    // --- 辅助函数：初始化 Plyr 播放器 ---
+    function initializePlyrPlayers(elements) {
+      if (!elements) return;
+
+      let playerElements = elements;
+      // 确保处理的是元素列表
+      if (elements instanceof Element && elements.matches('.post-video')) {
+          playerElements = [elements]; // 如果是单个video元素
+      } else if (elements instanceof Element) {
+           // 如果是容器元素，查找内部的 video
+          playerElements = elements.querySelectorAll('.post-video');
+      } else if (!(elements instanceof NodeList || Array.isArray(elements))) {
+          // 如果传入的不是 NodeList、Array 或 Element，尝试查找
+          playerElements = document.querySelectorAll(elements);
+      }
+      
+      // 过滤掉无效或已初始化的元素
+      const elementsToInit = Array.from(playerElements).filter(el => el && el.matches && el.matches('.post-video') && !el.plyr);
+
+      if (elementsToInit.length > 0) {
+          console.log(`Initializing Plyr for ${elementsToInit.length} new video element(s).`);
+          try {
+              Plyr.setup(elementsToInit, plyrOptions); // 使用 Plyr.setup 可以直接处理 NodeList
+              // 或者使用 new Plyr 遍历初始化
+              // elementsToInit.forEach(videoElement => {
+              //   new Plyr(videoElement, plyrOptions);
+              // });
+          } catch (e) {
+              console.error('Error initializing Plyr:', e, 'on elements:', elementsToInit);
+          }
+      }
+    }
+
+    // --- 1. 初始化页面首次加载时的视频 ---
+    console.log('Initializing Plyr for existing videos on page load...');
+    initializePlyrPlayers(postsContainer.querySelectorAll('.post-video'));
+
+    // --- 新帖子通知逻辑 ---
     function checkUserPosition() {
       const scrollPosition = window.scrollY;
       const windowHeight = window.innerHeight;
       const pageHeight = document.body.scrollHeight;
-      
-      // 判断是否在底部（允许50px的误差）
-      isUserAtBottom = (scrollPosition + windowHeight > pageHeight - 50);
-      
-      // 判断是否在顶部（允许50px的误差）
+      isUserAtBottom = (scrollPosition + windowHeight >= pageHeight - 50); // 调整为>=
       isUserAtTop = (scrollPosition < 50);
-      
-      // 如果用户在顶部且有新帖子，自动隐藏通知并重置状态
+
       if (isUserAtTop && hasNewPosts) {
         hideNewPostNotification();
         hasNewPosts = false;
       }
     }
-    
-    // 监听滚动事件
+
     window.addEventListener('scroll', checkUserPosition);
-    
-    // 显示新帖子通知
+    checkUserPosition(); // 初始检查
+
     function showNewPostNotification() {
-      // 只有当用户不在顶部且不在底部时才显示通知
       if (!isUserAtTop && !isUserAtBottom) {
         notification.classList.add('show');
       }
     }
-    
-    // 隐藏新帖子通知
+
     function hideNewPostNotification() {
       notification.classList.remove('show');
     }
-    
-    // 点击通知滚动到顶部
+
     notification.addEventListener('click', function() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       hideNewPostNotification();
     });
-    
-    // WebSocket 连接处理 - 手动创建WebSocket连接，不依赖ActionCable全局对象
-    // 获取WebSocket URL
-    const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-    const host = window.location.host;
-    const wsURL = `${protocol}${host}/cable`;
-    
-    console.log(`连接到WebSocket URL: ${wsURL}`);
-    
-    // 创建WebSocket连接
-    const socket = new WebSocket(wsURL);
-    
-    // 当连接打开时
-    socket.onopen = function(event) {
-      console.log('WebSocket连接已建立');
-      
-      // 发送订阅请求
-      const subscribeMsg = {
-        command: 'subscribe',
-        identifier: JSON.stringify({
-          channel: 'TopicChannel',
-          topic: topicName,
-          connection_id: sessionId
-        })
-      };
-      
-      socket.send(JSON.stringify(subscribeMsg));
-      console.log('发送订阅请求:', subscribeMsg);
-    };
-    
-    // 当收到消息时
-    socket.onmessage = function(event) {
-      // 解析接收到的数据
-      const response = JSON.parse(event.data);
-      console.log('收到WebSocket消息:', response);
-      
-      // 忽略确认消息和ping
-      if (response.type === 'confirm_subscription' || response.type === 'ping') {
-        return;
-      }
-      
-      // 处理正常消息
-      if (response.message) {
-        const data = response.message;
-        console.log(`收到话题 #${topicName} 的新帖子数据:`, data);
-        
-        if (data.html) {
-          // 处理服务器渲染的HTML
-          const tempDiv = document.createElement('div');
-          tempDiv.innerHTML = data.html;
-          const newPostElement = tempDiv.firstElementChild;
-          
-          // 添加一个动画类
-          newPostElement.classList.add('new-post-animation');
-          
-          // 将新帖子添加到容器的开头
-          postsContainer.insertBefore(newPostElement, postsContainer.firstChild);
-          
-          // 播放动画
-          setTimeout(() => {
-            newPostElement.classList.remove('new-post-animation');
-          }, 1000);
-          
-          // 检查用户位置
-          checkUserPosition();
-          
-          // 标记有新帖子
-          hasNewPosts = true;
-          
-          // 如果用户不在顶部且不在底部，显示通知
-          if (!isUserAtTop && !isUserAtBottom) {
-            showNewPostNotification();
+
+    // --- WebSocket 连接处理 ---
+    const topicName = postsContainer.dataset.topic; // 从 posts-container 获取 topic
+    const sessionId = postsContainer.dataset.connectionId; // 从 posts-container 获取 session id
+
+    if (topicName && sessionId) { // 确保 topic 和 session id 存在
+        console.log(`初始化 WebSocket 连接：话题 ${topicName}, 会话ID ${sessionId}`);
+        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        const host = window.location.host;
+        const wsURL = `${protocol}${host}/cable`;
+        console.log(`连接到WebSocket URL: ${wsURL}`);
+
+        const socket = new WebSocket(wsURL);
+
+        socket.onopen = function(event) {
+          console.log('WebSocket连接已建立');
+          const subscribeMsg = {
+            command: 'subscribe',
+            identifier: JSON.stringify({
+              channel: 'TopicChannel',
+              topic: topicName,
+              connection_id: sessionId // 发送 session id 用于排除自己
+            })
+          };
+          socket.send(JSON.stringify(subscribeMsg));
+          console.log('发送订阅请求:', subscribeMsg);
+        };
+
+        socket.onmessage = function(event) {
+          const response = JSON.parse(event.data);
+          console.log('收到WebSocket消息:', response);
+
+          if (response.type === 'confirm_subscription' || response.type === 'ping') {
+            return;
           }
-        }
-      }
-    };
-    
-    // 当连接关闭时
-    socket.onclose = function(event) {
-      console.log('WebSocket连接已关闭:', event);
-    };
-    
-    // 当发生错误时
-    socket.onerror = function(error) {
-      console.error('WebSocket错误:', error);
-    };
-    
-    // 处理加载更多按钮点击事件
+
+          if (response.message && response.message.html) {
+            const data = response.message;
+            console.log(`收到话题 #${topicName} 的新帖子数据(WebSocket):`, data);
+
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = data.html;
+            const newPostElement = tempDiv.firstElementChild;
+
+            if (!newPostElement) return; // 如果HTML无效则跳过
+
+            // 将新帖子添加到容器的开头
+            newPostElement.classList.add('new-post-animation');
+            postsContainer.insertBefore(newPostElement, postsContainer.firstChild);
+
+            // ⭐⭐ 初始化新帖子的 Plyr 播放器 ⭐⭐
+            initializePlyrPlayers(newPostElement); // 传递新添加的帖子元素
+
+            // 动画和通知逻辑
+            setTimeout(() => {
+              newPostElement.classList.remove('new-post-animation');
+            }, 1000);
+            checkUserPosition();
+            hasNewPosts = true;
+            if (!isUserAtTop && !isUserAtBottom) {
+                showNewPostNotification();
+            }
+          }
+        };
+
+        socket.onclose = function(event) {
+          console.log('WebSocket连接已关闭:', event);
+          // 可以考虑添加重连逻辑
+        };
+
+        socket.onerror = function(error) {
+          console.error('WebSocket错误:', error);
+        };
+    } else {
+       console.warn('未能获取到 topic 或 session id，WebSocket 未连接。');
+    }
+
+    // --- 加载更多按钮点击事件处理 (事件委托) ---
     postsContainer.addEventListener('click', function(event) {
       if (event.target.classList.contains('load-more-button')) {
         const loadMoreContainer = event.target.closest('.load-more-container');
+        if (!loadMoreContainer) return;
+
         const topic = loadMoreContainer.dataset.topic;
         const nextPage = loadMoreContainer.dataset.nextPage;
-        
-        // 禁用按钮，显示加载中状态
-        event.target.disabled = true;
-        event.target.textContent = '加载中...';
-        
-        // 发送 AJAX 请求获取更多帖子
+        const button = event.target;
+
+        button.disabled = true;
+        button.textContent = '加载中...';
+
+        console.log(`加载更多: topic=${topic}, page=${nextPage}`);
+
         fetch(`/topics/${topic}?page=${nextPage}`, {
           headers: {
-            'X-Requested-With': 'XMLHttpRequest'
+            'X-Requested-With': 'XMLHttpRequest', // 保持异步请求标识
+            'Accept': 'text/html' // 明确需要HTML片段
           }
         })
-        .then(response => response.text())
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          return response.text();
+        })
         .then(html => {
-          // 移除当前的加载更多按钮
+          const tempContainer = document.createElement('div');
+          tempContainer.innerHTML = html.trim(); // 使用 trim 去除可能的空白
+
+          // 移除加载按钮容器
           loadMoreContainer.remove();
+
+          // 将新帖子逐个添加到容器末尾，并收集新添加的视频元素引用
+          const addedElements = [];
+          while (tempContainer.firstChild) {
+            const child = tempContainer.firstChild;
+            postsContainer.appendChild(child);
+            // 只有当添加的是 Element Node 时才收集
+            if (child.nodeType === Node.ELEMENT_NODE) {
+                addedElements.push(child);
+            }
+          }
           
-          // 将新帖子添加到容器中
-          const tempDiv = document.createElement('div');
-          tempDiv.innerHTML = html;
-          
-          // 将新内容添加到帖子容器
-          while (tempDiv.firstChild) {
-            postsContainer.appendChild(tempDiv.firstChild);
+          // 查找所有新添加的帖子中的视频元素
+          const newVideos = addedElements.reduce((videos, element) => {
+             if (element.matches('.post-video')) { // 如果帖子本身就是视频
+                videos.push(element);
+             } else { // 否则查找帖子内部的视频
+                videos.push(...element.querySelectorAll('.post-video'));
+             }
+             return videos;
+          }, []);
+
+          console.log(`加载了 ${addedElements.length} 个新元素, 找到 ${newVideos.length} 个视频需要初始化Plyr。`);
+
+          // ⭐⭐ 初始化新加载的视频的 Plyr 播放器 ⭐⭐
+          if(newVideos.length > 0) {
+             initializePlyrPlayers(newVideos);
           }
         })
         .catch(error => {
           console.error('加载更多帖子失败:', error);
-          // 恢复按钮状态
-          event.target.disabled = false;
-          event.target.textContent = '加载更多';
+          if (button) {
+            // 尝试重新将按钮添加回去，或者显示错误消息
+            button.disabled = false;
+            button.textContent = '加载失败，点击重试';
+            postsContainer.appendChild(loadMoreContainer); // 把按钮容器加回去
+          } else {
+             // 如果按钮已被移除，可以在页面底部显示提示
+             const errorMsg = document.createElement('p');
+             errorMsg.textContent = '加载更多内容失败，请稍后刷新页面。';
+             errorMsg.style.textAlign = 'center';
+             errorMsg.style.color = 'red';
+             postsContainer.appendChild(errorMsg);
+          }
         });
       }
     });
-    
-    // 实现滚动到底部自动加载更多
+
+    // --- 滚动到底部自动加载更多 ---
+    let scrollTimeout;
     const handleScroll = () => {
-      const loadMoreButton = document.querySelector('.load-more-button');
-      if (loadMoreButton) {
-        const buttonRect = loadMoreButton.getBoundingClientRect();
-        // 如果按钮进入视口，自动点击
-        if (buttonRect.top < window.innerHeight && buttonRect.bottom > 0) {
-          loadMoreButton.click();
-        }
-      }
+        // 使用防抖优化滚动事件处理
+        clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(() => {
+            const loadMoreButton = document.querySelector('.load-more-button:not(:disabled)'); // 只查找未禁用的按钮
+            if (loadMoreButton) {
+                const buttonRect = loadMoreButton.getBoundingClientRect();
+                // 当按钮顶部进入视口下方一定距离时触发（例如视口高度的 1 到 1.5 倍）
+                // 或者简单点，按钮顶部小于窗口高度即可
+                if (buttonRect.top < window.innerHeight * 1.5 ) { // 提前加载
+                    console.log('滚动到底部，触发加载更多。');
+                    loadMoreButton.click();
+                }
+            }
+        }, 100); // 100ms 防抖
     };
-    
-    // 添加滚动事件监听
-    window.addEventListener('scroll', handleScroll);
-    // 初始检查一次，以防按钮已经在视口内
+
+    window.addEventListener('scroll', handleScroll, { passive: true }); // 使用 passive 提升滚动性能
+    // 初始检查一次，以防按钮一开始就在视口内或接近视口
     handleScroll();
+
   });
 </script>

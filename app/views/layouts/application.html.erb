@@ -21,6 +21,9 @@
     <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
     <%= javascript_importmap_tags %>
     
+    <%# 添加 Plyr.js 的 CSS CDN（更新后的链接） %>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/plyr@3.7.8/dist/plyr.css" />
+
     <style>
       body {
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -78,6 +81,20 @@
         <p>&copy; <%= Time.now.year %> Inswall - Instagram 话题墙</p>
       </div>
     </footer>
+    
+    <%# 添加 Plyr.js 的 JS CDN（更新后的链接） %>
+    <script src="https://cdn.jsdelivr.net/npm/plyr@3.7.8/dist/plyr.min.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        // 初始化 Plyr.js，针对所有有特定类的 video 元素
+        const players = Plyr.setup('.post-video', {
+          controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'captions', 'settings', 'pip', 'airplay', 'fullscreen'],
+          // 确保不预加载视频，依赖 HTML 的 preload="none"
+          loadSprite: true,
+          iconUrl: 'https://cdn.jsdelivr.net/npm/plyr@3.7.8/dist/plyr.svg'
+        });
+      });
+    </script>
     
     <style>
       .main-header {

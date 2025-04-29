@@ -5,7 +5,10 @@
       <%= image_tag media_path, class: 'post-image', alt: '帖子图片' %>
     <% else %>
       <% media_path = post['media_url'].gsub('data/mock/', '/mock/') %>
-      <video controls class="post-video">
+      <% # 动态生成封面路径：/mock/poster/video_name_poster.jpeg %>
+      <% video_name = File.basename(media_path, File.extname(media_path)) %>
+      <% poster_path = "/mock/poster/#{video_name}_poster.jpeg" %>
+      <video class="post-video" controls preload="none" poster="<%= poster_path %>">
         <source src="<%= media_path %>" type="video/mp4">
         您的浏览器不支持视频标签。
       </video>
@@ -46,8 +49,24 @@
 
     .post-media {
       width: 100%;
-      aspect-ratio: 1;
+      aspect-ratio: 1; /* 保持 1:1 的宽高比 */
       overflow: hidden;
+      position: relative; /* 建议添加，以便后续可能需要绝对定位内部元素 */
+      background-color: #eee; /* 添加一个背景色，便于调试查看容器范围 */
+    }
+
+    .post-media .plyr { /* 选择 .post-media 下的 Plyr 容器 */
+      width: 100%;
+      height: 100%;
+      position: absolute; /* 让它相对于 .post-media 定位 */
+      top: 0;
+      left: 0;
+    }
+
+    .post-media .plyr video {
+      object-fit: cover;
+      width: 100%;  /* Plyr 通常会处理这个，但显式设置可能更保险 */
+      height: 100%; /* Plyr 通常会处理这个，但显式设置可能更保险 */
     }
 
     .post-image, .post-video {
