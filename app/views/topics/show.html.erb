@@ -145,21 +145,37 @@
     // 新帖子通知相关
     const notification = document.getElementById('new-post-notification');
     let isUserAtBottom = true;
+    let isUserAtTop = true; 
+    let hasNewPosts = false; 
     
-    // 检查用户是否在页面底部
-    function checkIfUserAtBottom() {
-      const scrollPosition = window.scrollY + window.innerHeight;
+    // 检查用户是否在页面底部和顶部
+    function checkUserPosition() {
+      const scrollPosition = window.scrollY;
+      const windowHeight = window.innerHeight;
       const pageHeight = document.body.scrollHeight;
-      // 如果用户滚动位置在页面底部附近（允许50px的误差）
-      isUserAtBottom = (scrollPosition > pageHeight - 50);
+      
+      // 判断是否在底部（允许50px的误差）
+      isUserAtBottom = (scrollPosition + windowHeight > pageHeight - 50);
+      
+      // 判断是否在顶部（允许50px的误差）
+      isUserAtTop = (scrollPosition < 50);
+      
+      // 如果用户在顶部且有新帖子，自动隐藏通知并重置状态
+      if (isUserAtTop && hasNewPosts) {
+        hideNewPostNotification();
+        hasNewPosts = false;
+      }
     }
     
     // 监听滚动事件
-    window.addEventListener('scroll', checkIfUserAtBottom);
+    window.addEventListener('scroll', checkUserPosition);
     
     // 显示新帖子通知
     function showNewPostNotification() {
-      notification.classList.add('show');
+      // 只有当用户不在顶部且不在底部时才显示通知
+      if (!isUserAtTop && !isUserAtBottom) {
+        notification.classList.add('show');
+      }
     }
     
     // 隐藏新帖子通知
@@ -235,11 +251,14 @@
             newPostElement.classList.remove('new-post-animation');
           }, 1000);
           
-          // 检查用户是否在页面底部
-          checkIfUserAtBottom();
+          // 检查用户位置
+          checkUserPosition();
           
-          // 如果用户不在页面底部，显示通知
-          if (!isUserAtBottom) {
+          // 标记有新帖子
+          hasNewPosts = true;
+          
+          // 如果用户不在顶部且不在底部，显示通知
+          if (!isUserAtTop && !isUserAtBottom) {
             showNewPostNotification();
           }
         }
